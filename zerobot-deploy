@@ -58,8 +58,9 @@ def main():
 
     if not os.path.exists(dest_folder + '/deploy'):
       changed = True
-      with zipfile.ZipFile(dest_zip_name) as dest_zip:
-        dest_zip.extractall(dest_folder)
+      dest_zip = zipfile.ZipFile(dest_zip_name, 'r')
+      dest_zip.extractall(dest_folder)
+      dest_zip.close()
 
       ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder, dest_folder)
       p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
