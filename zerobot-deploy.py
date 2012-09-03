@@ -3,7 +3,7 @@
 import json
 import re
 import os
-from subprocess import call
+from subprocess import call, Popen, PIPE, STDOUT
 import zipfile
 import boto
 from boto.s3.key import Key
@@ -49,11 +49,9 @@ def main():
     dest_folder = dest + '/%s/%s/%s' % (project, app, release_folder_name)
     dest_zip_name = dest_folder + '/' + zip_name
     if not os.path.exists(dest_folder):
-      changed = True
       os.makedirs(dest_folder)
 
     if not os.path.exists(dest_zip_name):
-      changed = True
       release_key = Key(s3_bucket)
       release_key.key = '%s/%s' % (release_folder_name, zip_name)
       release_key.get_contents_to_filename(dest_zip_name)
@@ -63,9 +61,13 @@ def main():
       with zipfile.ZipFile(dest_zip_name) as dest_zip:
         dest_zip.extractall(dest_folder)
 
-    ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder, dest_folder)
-    return_code = call([ansible_command_line], shell = True)
-    module.fail_json("Ansible deploy playbook returned " + return_code)
+      ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder, dest_folder)
+      p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
+      p.wait()
+      command_output = p.stdout.read()
+      return_code = p.returncode
+      if return_code != 0:
+        module.fail_json(msg = "Ansible deploy playbook returned " + return_code + '\n' + command_output)
 
   module.exit_json(changed = changed)
 
