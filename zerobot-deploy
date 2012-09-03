@@ -3,6 +3,7 @@
 import json
 import re
 import os
+import lockfile
 from subprocess import call, Popen, PIPE, STDOUT
 import zipfile
 import boto
@@ -75,4 +76,7 @@ def main():
 
 # include magic from lib/ansible/module_common.py
 #<<INCLUDE_ANSIBLE_MODULE_COMMON>>
-main()
+
+lock = lockfile.FileLock('/var/run/zerobot-deploy')
+with lock:
+  main()
