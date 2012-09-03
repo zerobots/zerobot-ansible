@@ -64,8 +64,8 @@ def main():
         dest_zip.extractall(dest_folder)
 
     ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder, dest_folder)
-    print ansible_command_line
-    call([ansible_command_line], shell = True)
+    return_code = call([ansible_command_line], shell = True)
+    module.fail_json("Ansible deploy playbook returned " + return_code)
 
   module.exit_json(changed = changed)
 
