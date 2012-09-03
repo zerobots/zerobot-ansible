@@ -78,5 +78,6 @@ def main():
 #<<INCLUDE_ANSIBLE_MODULE_COMMON>>
 
 lock = lockfile.FileLock('/var/run/zerobot-deploy')
-with lock:
-  main()
+if not lock.is_locked():
+  with lock:
+    main()
