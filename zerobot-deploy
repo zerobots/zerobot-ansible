@@ -45,25 +45,38 @@ def main():
 
   release_num = latest_release(s3_bucket)
   if release_num > 0:
-    release_folder_name = 'release-%s' % release_num
-    zip_name = app + '.zip'
-    dest_folder = dest + '/%s/%s/%s' % (project, app, release_folder_name)
-    dest_zip_name = dest_folder + '/' + zip_name
-    if not os.path.exists(dest_folder):
-      os.makedirs(dest_folder)
+    release_dir_name = 'release-%s' % release_num
+    zip_file_name = app + '.zip'
+    env_file_name = app + '-env.yaml'
+    dest_folder_path = dest + '/%s/%s/%s' % (project, app, release_dir_name)
+    dest_zip_file_path = dest_folder_path + '/' + zip_file_name
+    ansible_env_file_path = dest_folder_path + '/deploy/env.yaml'
 
-    if not os.path.exists(dest_zip_name):
+    # Create the app dir
+    if not os.path.exists(dest_folder_path):
+      os.makedirs(dest_folder_path)
+
+    # Retrieve the app zip from S3
+    if not os.path.exists(dest_zip_file_path):
       release_key = Key(s3_bucket)
-      release_key.key = '%s/%s' % (release_folder_name, zip_name)
-      release_key.get_contents_to_filename(dest_zip_name)
+      release_key.key = '%s/%s' % (release_dir_name, zip_file_name)
+      release_key.get_contents_to_filename(dest_zip_file_path)
 
-    if not os.path.exists(dest_folder + '/deploy'):
+    # Unzip the app
+    if not os.path.exists(dest_folder_path + '/deploy'):
       changed = True
-      dest_zip = zipfile.ZipFile(dest_zip_name, 'r')
-      dest_zip.extractall(dest_folder)
+      dest_zip = zipfile.ZipFile(dest_zip_file_path, 'r')
+      dest_zip.extractall(dest_folder_path)
       dest_zip.close()
 
-      ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder, dest_folder)
+      # Create the vars_file for ansible
+      if not os.path.exists(ansible_env_file_path):
+        env_key = Key(s3_bucket)
+        env_key.key = '%s/%s' % (release_dir_name, env_file_name)
+        env_key.get_contents_to_filename(ansible_env_file_path)
+
+      # Run the ansible deploy playbook for the app
+      ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder_path, dest_folder_path)
       p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
       p.wait()
       command_output = p.stdout.read()
