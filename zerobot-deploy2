@@ -1,0 +1,97 @@
+#!/usr/bin/python
+
+import json
+import re
+import os
+import lockfile
+import tempfile
+import shutil
+from subprocess import call, Popen, PIPE, STDOUT
+import zipfile
+import boto
+from boto.s3.key import Key
+
+
+def latest_release(s3_bucket):
+  releases = s3_bucket.list()
+  latest_release_number = -1
+  for key in releases:
+    match = re.match(r'^release-([0-9]+)/', key.name)
+    if match:
+      release_number = int(match.group(1))
+      if release_number > latest_release_number:
+        latest_release_number = release_number
+
+  return latest_release_number
+
+
+def install_app(project, app, s3_bucket, release_name):
+  release_download_base_dir = '/opt/%s/%s/releases' % (project, app)
+  release_download_dir = release_download_base_dir + '/' + release_name
+  changed = False
+  if not os.path.isdir(release_download_dir):
+    changed = True
+    os.makedirs(release_download_dir)
+
+  for key in s3_bucket.list(prefix = '%s/%s' % (release_name, app)):
+    release_file = key.name
+    file_key = Key(s3_bucket)
+    file_key.key = release_file
+    dest_file = release_download_base_dir + '/' + release_file
+    if not os.path.isfile(dest_file):
+      changed = True
+      file_key.get_contents_to_filename(dest_file)
+
+    if release_file.endswith('.zip'):
+      app_version = re.match(r'.*/%s-(.+).zip' % app, release_file).group(1)
+
+  if changed:
+    run_ansible_playbook('install-app.yaml', "project=%s app=%s src='%s' version='%s'" % (project, app, release_download_dir, app_version))
+
+  return changed
+
+
+def run_ansible_playbook(playbook_name, extra_vars):
+  ansible_command_line = 'ansible-playbook -v -c local -e "%s" %s' % (extra_vars, playbook_name)
+  p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
+  p.wait()
+  command_output = p.stdout.read()
+  return_code = p.returncode
+  if return_code != 0:
+    module.fail_json(msg = "Ansible deploy playbook returned " + return_code + '\n' + command_output)
+
+
+def main():
+  module = AnsibleModule(
+    argument_spec = dict(
+      project = dict(required = True),
+      app = dict(required = True),
+      bucket = dict(required = True),
+      dest = dict(required = True)
+    )
+  )
+
+  project = module.params['project']
+  app = module.params['app']
+  bucket = module.params['bucket']
+  dest = module.params['dest']
+
+  changed = False
+
+  conn = boto.connect_s3()
+  s3_bucket = conn.get_bucket(bucket)
+
+  release_num = latest_release(s3_bucket)
+  if release_num > 0:
+    changed = install_app(project, app, s3_bucket, 'release-' + str(release_num))
+
+  module.exit_json(changed = changed)
+
+
+# include magic from lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+
+lock = lockfile.FileLock('/var/run/zerobot-deploy')
+if not lock.is_locked():
+  with lock:
+    main()

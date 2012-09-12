@@ -1,0 +1,41 @@
+---
+- hosts: 127.0.0.1
+
+  vars:
+
+    # The following vars to be supplied by the caller:
+    # project - the name of the app's project
+    # app - the name of the app being installed
+    # src - source directory of the downloaded release artifacts
+    # version - version string of the release being installed
+
+    project_dir: "/opt/${project}"
+    app_dir: "${project_dir}/${app}"
+    app_version_dir: "${app_dir}/${app}-${version}"
+    user_name: "${app}"
+    app_zip_file: "${src}/${app}-${version}.zip"
+    app_env_yaml_file: "${src}/${app}-env.yaml"
+
+  tasks:
+
+    - name: Create app user
+      action: "user name=${user_name} createhome=no"
+
+    - name: Create project directory
+      action: "file dest=${project_dir} state=directory"
+
+    - name: Create app directory
+      action: "file dest=${app_dir} state=directory"
+
+    - name: Create app version directory
+      action: "file dest=${app_version_dir} state=directory owner=${user_name}"
+
+    - name: Unzip release
+      action: "command unzip ${app_zip_file} -d ${app_version_dir} creates=${app_version_dir}/deploy"
+
+    - name: Copy ansible environment yaml
+      action: "copy src=${app_env_yaml_file} dest=${app_version_dir}/env.yaml"
+
+    - name: Set app dir owner
+      action: "command chown -R ${user_name} ${app_version_dir}"
+
