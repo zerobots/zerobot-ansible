@@ -1,0 +1,48 @@
+---
+- hosts: 127.0.0.1
+
+  vars:
+
+    # The following vars must be supplied by the caller:
+    # version - the version of ruby to install
+
+    rbenv_home: /usr/local/rbenv
+    rbenv_env: RBENV_ROOT=$rbenv_home PATH=$rbenv_home/shims:$rbenv_home/bin:$PATH
+    rbenv_cmd: $rbenv_env rbenv
+
+  tasks:
+
+  - name: "Install rbenv dependencies"
+    action: yum name=${item}
+    with_items:
+      - gcc
+      - gcc-c++
+      - zlib
+      - zlib-devel
+      - openssl
+      - openssl-devel
+      - readline
+      - readline-devel
+      - make
+      - git
+
+  - name: "Install rbenv"
+    action: git repo=git://github.com/sstephenson/rbenv.git dest=$rbenv_home
+
+  - name: "Install ruby-build"
+    action: git repo=git://github.com/sstephenson/ruby-build.git dest=$rbenv_home/plugins/ruby-build
+
+  - name: "Set rbenv environment"
+    action: template src=templates/rbenv.sh dest=/etc/profile.d/rbenv.sh
+
+  - name: "Install ruby"
+    action: shell CONFIGURE_OPTS=--disable-install-doc $rbenv_cmd install $version creates=$rbenv_home/versions/$version
+
+  - name: "Rehash rbenv"
+    action: shell $rbenv_cmd rehash
+
+  - name: "Install bundler"
+    action: shell $rbenv_env gem install bundler --no-rdoc --no-ri
+
+  - name: "Install foreman"
+    action: shell $rbenv_env gem install foreman --no-rdoc --no-ri

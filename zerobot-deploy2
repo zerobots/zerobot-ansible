@@ -25,7 +25,7 @@ def latest_release(s3_bucket):
   return latest_release_number
 
 
-def install_app(project, app, s3_bucket, release_name):
+def copy_app(project, app, s3_bucket, release_name):
   release_download_base_dir = '/opt/%s/%s/releases' % (project, app)
   release_download_dir = release_download_base_dir + '/' + release_name
   changed = False
@@ -45,10 +45,28 @@ def install_app(project, app, s3_bucket, release_name):
     if release_file.endswith('.zip'):
       app_version = re.match(r'.*/%s-(.+).zip' % app, release_file).group(1)
 
-  if changed:
-    run_ansible_playbook('install-app.yaml', "project=%s app=%s src='%s' version='%s'" % (project, app, release_download_dir, app_version))
+  run_ansible_playbook('install-app.yaml', "project=%s app=%s src='%s' version='%s'" % (project, app, release_download_dir, app_version))
 
   return changed
+
+
+def install_prereqs(app_dir):
+  check_for_ruby(app_dir)
+  #check_for_java()
+  #check_for_procfile()
+
+
+def check_for_ruby(base_dir):
+  found = False
+  for root, dirs, files in os.walk(base_dir, followlinks = True):
+    if '.rbenv-version' in files:
+      found = True
+      with open(root + '/.rbenv-version') as f:
+        ruby_version = f.read().strip()
+      break
+
+  if found:
+    run_ansible_playbook('install-ruby.yaml', "version='%s'" % ruby_version)
 
 
 def run_ansible_playbook(playbook_name, extra_vars):
@@ -83,7 +101,14 @@ def main():
 
   release_num = latest_release(s3_bucket)
   if release_num > 0:
-    changed = install_app(project, app, s3_bucket, 'release-' + str(release_num))
+    changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
+
+  if changed:
+    app_dir = '/opt/%s/%s/current' % (project, app)
+    # stop_app()
+    install_prereqs(app_dir)
+    # install_app()
+    # start_app()
 
   module.exit_json(changed = changed)
 

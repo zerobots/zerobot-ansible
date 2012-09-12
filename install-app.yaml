@@ -39,3 +39,5 @@
     - name: Set app dir owner
       action: "command chown -R ${user_name} ${app_version_dir}"
 
+    - name: Link to current release
+      action: "file dest=${app_dir}/current src=${app_version_dir} state=link"
