@@ -1,0 +1,33 @@
+---
+- hosts: 127.0.0.1
+
+  vars:
+
+    # The following vars must be passed in by the caller:
+    # version - the JRE version to install, eg: '7u6'
+
+    jre_filename: "jre-${version}-linux-x64.rpm"
+
+    # TODO these need to be dynamically determined - hard coded for 7u6 for now
+    build: b24
+    jre_install_dir: /usr/java/jre1.7.0_06
+
+    # Needs to match up with the download link on the Oracle download page
+    jre_download_url: "http://download.oracle.com/otn-pub/java/jdk/${version}-${build}/$jre_filename"
+
+    jre_rpm: /tmp/$jre_filename
+
+  tasks:
+
+  # Strange shenanigans to get bypass the "agree to license" and signin crap that Oracle puts in your way when you want to download the JVM
+  - name: Download JRE
+    action: "shell wget --no-cookies --output-document $jre_rpm --header 'Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com;' $jre_download_url creates=$jre_rpm"
+
+  - name: Install JRE
+    action: shell yum -y --nogpgcheck localinstall $jre_rpm creates=$jre_install_dir
+
+  - name: Update alternatives
+    action: |
+      shell
+      alternatives --install /usr/bin/java java $jre_install_dir/bin/java 20000 &&
+      alternatives --install /usr/bin/jar jar $jre_install_dir/bin/jar 20000

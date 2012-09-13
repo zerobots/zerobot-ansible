@@ -18,6 +18,9 @@
 
   tasks:
 
+    # Note it's really important that these tasks return an accurate "changed" value
+    # as other app installation tasks depend on this.
+
     - name: Create app user
       action: "user name=${user_name} createhome=no"
 
@@ -31,13 +34,10 @@
       action: "file dest=${app_version_dir} state=directory owner=${user_name}"
 
     - name: Unzip release
-      action: "command unzip ${app_zip_file} -d ${app_version_dir} creates=${app_version_dir}/deploy"
+      action: "shell unzip ${app_zip_file} -d ${app_version_dir} && chown -R ${user_name} ${app_version_dir} creates=${app_version_dir}/deploy"
 
     - name: Copy ansible environment yaml
-      action: "copy src=${app_env_yaml_file} dest=${app_version_dir}/env.yaml"
-
-    - name: Set app dir owner
-      action: "command chown -R ${user_name} ${app_version_dir}"
+      action: "copy src=${app_env_yaml_file} dest=${app_version_dir}/env.yaml owner=${user_name}"
 
     - name: Link to current release
       action: "file dest=${app_dir}/current src=${app_version_dir} state=link"

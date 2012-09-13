@@ -52,21 +52,30 @@ def copy_app(project, app, s3_bucket, release_name):
 
 def install_prereqs(app_dir):
   check_for_ruby(app_dir)
-  #check_for_java()
+  check_for_java(app_dir)
   #check_for_procfile()
 
 
 def check_for_ruby(base_dir):
-  found = False
+  ruby_version = find_and_read_version_file(base_dir, '.rbenv-version')
+  if ruby_version:
+    run_ansible_playbook('install-ruby.yaml', "version='%s'" % ruby_version)
+
+def check_for_java(base_dir):
+  java_version = find_and_read_version_file(base_dir, '.java-version')
+  if java_version:
+    run_ansible_playbook('install-java.yaml', "version='%s'" % java_version)
+
+def find_and_read_version_file(base_dir, filename):
+  version = None
   for root, dirs, files in os.walk(base_dir, followlinks = True):
-    if '.rbenv-version' in files:
+    if filename in files:
       found = True
-      with open(root + '/.rbenv-version') as f:
-        ruby_version = f.read().strip()
+      with open(root + '/' + filename) as f:
+        version = f.read().strip()
       break
 
-  if found:
-    run_ansible_playbook('install-ruby.yaml', "version='%s'" % ruby_version)
+  return version
 
 
 def run_ansible_playbook(playbook_name, extra_vars):
@@ -76,7 +85,7 @@ def run_ansible_playbook(playbook_name, extra_vars):
   command_output = p.stdout.read()
   return_code = p.returncode
   if return_code != 0:
-    module.fail_json(msg = "Ansible deploy playbook returned " + return_code + '\n' + command_output)
+    raise RuntimeError("Ansible deploy playbook returned " + str(return_code) + ': ' + command_output)
 
 
 def main():
@@ -84,31 +93,35 @@ def main():
     argument_spec = dict(
       project = dict(required = True),
       app = dict(required = True),
-      bucket = dict(required = True),
-      dest = dict(required = True)
+      bucket = dict(required = True)
     )
   )
 
   project = module.params['project']
   app = module.params['app']
   bucket = module.params['bucket']
-  dest = module.params['dest']
 
   changed = False
 
-  conn = boto.connect_s3()
-  s3_bucket = conn.get_bucket(bucket)
+  try:
 
-  release_num = latest_release(s3_bucket)
-  if release_num > 0:
-    changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
+    conn = boto.connect_s3()
+    s3_bucket = conn.get_bucket(bucket)
 
-  if changed:
-    app_dir = '/opt/%s/%s/current' % (project, app)
-    # stop_app()
-    install_prereqs(app_dir)
-    # install_app()
-    # start_app()
+    release_num = latest_release(s3_bucket)
+    if release_num > 0:
+      changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
+
+    if changed:
+      app_dir = '/opt/%s/%s/current' % (project, app)
+      install_prereqs(app_dir)
+      # stop_app()
+      # install_app()
+      # start_app()
+
+  except Exception, e:
+    #module.fail_json(msg = str(e))
+    raise e
 
   module.exit_json(changed = changed)
 
