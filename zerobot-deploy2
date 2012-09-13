@@ -45,7 +45,8 @@ def copy_app(project, app, s3_bucket, release_name):
     if release_file.endswith('.zip'):
       app_version = re.match(r'.*/%s-(.+).zip' % app, release_file).group(1)
 
-  run_ansible_playbook('install-app.yaml', "project=%s app=%s src='%s' version='%s'" % (project, app, release_download_dir, app_version))
+  if changed:
+    run_ansible_playbook('install-app.yaml', "project=%s app=%s src='%s' version='%s'" % (project, app, release_download_dir, app_version))
 
   return changed
 
@@ -59,7 +60,10 @@ def install_prereqs(app_dir):
 def check_for_ruby(base_dir):
   ruby_version = find_and_read_version_file(base_dir, '.rbenv-version')
   if ruby_version:
-    run_ansible_playbook('install-ruby.yaml', "version='%s'" % ruby_version)
+    rbenv_home = '/usr/local/rbenv'
+    run_ansible_playbook('install-ruby.yaml', "version='%s' rbenv_home=%s" % (ruby_version, rbenv_home))
+    os.environ['RBENV_ROOT'] = rbenv_home
+    os.environ['PATH'] = rbenv_home + '/shims' + os.pathsep + rbenv_home + '/bin' + os.pathsep + os.environ['PATH']
 
 def check_for_java(base_dir):
   java_version = find_and_read_version_file(base_dir, '.java-version')
