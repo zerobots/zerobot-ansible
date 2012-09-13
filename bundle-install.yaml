@@ -1,0 +1,16 @@
+---
+- hosts: 127.0.0.1
+
+  vars:
+
+    # The following vars must be supplied by the caller:
+    # gemfile_dir - the directory in which the gemfile lives
+    # app - the app which we are installing the gemfile for
+
+  tasks:
+
+  - name: "Bundle install"
+    action: shell bundle install --deployment --binstubs --shebang ruby-local-exec chdir=$gemfile_dir
+
+  - name: Add bundle bin to path
+    action: "lineinfile name=/home/${app}/.bash_profile line='export PATH=${gemfile_dir}/bin:$PATH' regexp='export PATH=${gemfile_dir}/bin'"

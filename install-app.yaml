@@ -22,7 +22,7 @@
     # as other app installation tasks depend on this.
 
     - name: Create app user
-      action: "user name=${user_name} createhome=no"
+      action: "user name=${user_name}"
 
     - name: Create project directory
       action: "file dest=${project_dir} state=directory"

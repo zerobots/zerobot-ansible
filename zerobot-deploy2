@@ -51,9 +51,12 @@ def copy_app(project, app, s3_bucket, release_name):
   return changed
 
 
-def install_prereqs(app_dir):
+def install_prereqs(project, app):
+  app_dir = '/opt/%s/%s/current' % (project, app)
   check_for_ruby(app_dir)
   check_for_java(app_dir)
+  check_for_gemfile(app, app_dir)
+
   #check_for_procfile()
 
 
@@ -65,10 +68,19 @@ def check_for_ruby(base_dir):
     os.environ['RBENV_ROOT'] = rbenv_home
     os.environ['PATH'] = rbenv_home + '/shims' + os.pathsep + rbenv_home + '/bin' + os.pathsep + os.environ['PATH']
 
+
 def check_for_java(base_dir):
   java_version = find_and_read_version_file(base_dir, '.java-version')
   if java_version:
     run_ansible_playbook('install-java.yaml', "version='%s'" % java_version)
+
+
+def check_for_gemfile(app, base_dir):
+  for root, dirs, files in os.walk(base_dir, followlinks = True):
+    if 'Gemfile' in files:
+      run_ansible_playbook('bundle-install.yaml', "app='%s' gemfile_dir='%s'" % (app, root))
+      break
+
 
 def find_and_read_version_file(base_dir, filename):
   version = None
@@ -86,10 +98,10 @@ def run_ansible_playbook(playbook_name, extra_vars):
   ansible_command_line = 'ansible-playbook -v -c local -e "%s" %s' % (extra_vars, playbook_name)
   p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
   p.wait()
-  command_output = p.stdout.read()
+  command_output = p.stdout.read() + ', ' + p.stderr.read()
   return_code = p.returncode
   if return_code != 0:
-    raise RuntimeError("Ansible deploy playbook returned " + str(return_code) + ': ' + command_output)
+    raise RuntimeError("Ansible playbook " + playbook_name + " returned " + str(return_code) + ': ' + command_output)
 
 
 def main():
@@ -117,15 +129,14 @@ def main():
       changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
 
     if changed:
-      app_dir = '/opt/%s/%s/current' % (project, app)
-      install_prereqs(app_dir)
+      install_prereqs(project, app)
       # stop_app()
       # install_app()
       # start_app()
 
   except Exception, e:
-    #module.fail_json(msg = str(e))
-    raise e
+    module.fail_json(msg = str(e))
+    #raise e
 
   module.exit_json(changed = changed)
 
