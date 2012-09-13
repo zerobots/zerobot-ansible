@@ -44,7 +44,7 @@
 
     # Needed so the gem commands operate on the right ruby - might be a better way of doing this
   - name: "Set global ruby"
-    action: shell $rbenv_cmd global $ruby_version
+    action: shell $rbenv_cmd global $version
 
   - name: "Install bundler"
     action: shell $rbenv_env gem install bundler --no-rdoc --no-ri
