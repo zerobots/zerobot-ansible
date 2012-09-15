@@ -1,0 +1,14 @@
+---
+- hosts: 127.0.0.1
+
+  vars:
+
+    # The following vars must be supplied by the caller:
+    # project
+    # app
+    # procfile
+
+  tasks:
+
+  - name: Install upstart jobs
+    action: "shell foreman export upstart /etc/init --app ${app} --log /var/log/${project}/${app} --user ${app} --template templates/upstart --procfile ${procfile}"

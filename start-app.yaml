@@ -1,0 +1,12 @@
+---
+- hosts: 127.0.0.1
+
+  vars:
+
+    # The following vars must be supplied by the caller:
+    # app
+
+  tasks:
+
+  - name: Start app
+    action: "service name=${app} state=started"
