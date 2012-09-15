@@ -37,7 +37,7 @@
       action: "shell unzip ${app_zip_file} -d ${app_version_dir} && chown -R ${user_name} ${app_version_dir} creates=${app_version_dir}/deploy"
 
     - name: Copy ansible environment yaml
-      action: "copy src=${app_env_yaml_file} dest=${app_version_dir}/env.yaml owner=${user_name}"
+      action: "copy src=${app_env_yaml_file} dest=${app_version_dir}/deploy/env.yaml owner=${user_name}"
 
     - name: Link to current release
       action: "file dest=${app_dir}/current src=${app_version_dir} state=link"

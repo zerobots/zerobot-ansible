@@ -6,6 +6,7 @@ import os
 import lockfile
 import tempfile
 import shutil
+import yaml
 from subprocess import call, Popen, PIPE, STDOUT
 import zipfile
 import boto
@@ -83,8 +84,19 @@ def check_for_gemfile(project, app):
 def check_for_procfile(project, app):
   for root, dirs, files in os.walk(app_current_dir(project, app), followlinks = True):
     if 'Procfile' in files:
-      run_ansible_playbook('install-upstart.yaml', "project='%s' app='%s' procfile='%s'" % (project, app, root + '/Procfile'))
+      yaml_to_env(app_current_dir(project, app) + '/deploy/env.yaml', root + '/%s.env' % app)
+      run_ansible_playbook('install-upstart.yaml', "project='%s' app='%s' procfile_dir='%s'" % (project, app, root))
       break
+
+
+def yaml_to_env(yaml_file, env_file):
+  f = open(yaml_file)
+  env = yaml.load(f)
+  f.close()
+  f = open(env_file, 'w')
+  for key in env.iterkeys():
+    f.write('%s=%s\n' % (key, env[key]))
+  f.close()
 
 
 def find_and_read_version_file(base_dir, filename):

@@ -6,9 +6,9 @@
     # The following vars must be supplied by the caller:
     # project
     # app
-    # procfile
+    # procfile_dir
 
   tasks:
 
   - name: Install upstart jobs
-    action: "shell foreman export upstart /etc/init --app ${app} --log /var/log/${project}/${app} --user ${app} --template templates/upstart --procfile ${procfile}"
+    action: "shell foreman export upstart /etc/init --app ${app} --log /var/log/${project}/${app} --user ${app} --template templates/upstart --procfile ${procfile_dir}/Procfile --env ${procfile_dir}/${app}.env"
