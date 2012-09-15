@@ -10,7 +10,7 @@
   tasks:
 
   - name: "Bundle install"
-    action: shell bundle install --deployment --binstubs --shebang ruby-local-exec chdir=$gemfile_dir
+    action: shell bundle install --deployment --binstubs --shebang ruby-local-exec chdir=$gemfile_dir creates=$gemfile_dir/vendor/bundle
 
   - name: Add bundle bin to path
     action: "lineinfile name=/home/${app}/.bash_profile line='export PATH=${gemfile_dir}/bin:$PATH' regexp='export PATH=${gemfile_dir}/bin'"

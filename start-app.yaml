@@ -9,4 +9,5 @@
   tasks:
 
   - name: Start app
-    action: "service name=${app} state=started"
+    action: "command start ${app}"
+    only_if: 'os.path.isfile("/etc/init/$app.conf")'

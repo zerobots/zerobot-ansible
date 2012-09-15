@@ -8,5 +8,6 @@
 
   tasks:
 
-  - name: Start app
-    action: "service name=${app} state=stopped"
+  - name: Stop app
+    action: "command stop ${app}"
+    only_if: 'os.path.isfile("/etc/init/$app.conf")'

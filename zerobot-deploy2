@@ -102,7 +102,7 @@ def find_and_read_version_file(base_dir, filename):
 def start_app(app):
   run_ansible_playbook('start-app.yaml', "app=" + app)
 
-def stop_app(project, app):
+def stop_app(app):
   run_ansible_playbook('stop-app.yaml', "app=" + app)
 
 
@@ -141,16 +141,16 @@ def main():
       changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
 
     if changed:
-      stop_app(project, app)
+      stop_app(app)
       check_for_ruby(project, app)
       check_for_java(project, app)
       check_for_gemfile(project, app)
       check_for_procfile(project, app)
-      start_app(project, app)
+      start_app(app)
 
   except Exception, e:
-    module.fail_json(msg = str(e))
-    #raise e
+    #module.fail_json(msg = str(e))
+    raise e
 
   module.exit_json(changed = changed)
 
