@@ -112,7 +112,7 @@ def yaml_to_env(yaml_file, env_file):
 
 
 def check_for_custom_deploy(project, app):
-  custom_deploy_playbook = app_current_dir(project, app) + '/deploy/deploy2.yaml'
+  custom_deploy_playbook = app_current_dir(project, app) + '/deploy/deploy.yml'
   if os.path.isfile(custom_deploy_playbook):
     run_ansible_playbook(custom_deploy_playbook, "project='%s' app='%s' app_home='%s'" % (project, app, app_current_dir(project, app)))
 
