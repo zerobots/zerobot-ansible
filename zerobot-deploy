@@ -4,10 +4,20 @@ import json
 import re
 import os
 import lockfile
+import tempfile
+import shutil
+import yaml
 from subprocess import call, Popen, PIPE, STDOUT
 import zipfile
 import boto
 from boto.s3.key import Key
+
+
+def app_dir(project, app):
+  return '/opt/%s/%s' % (project, app)
+
+def app_current_dir(project, app):
+  return '%s/%s' % (app_dir(project, app), 'current')
 
 
 def latest_release(s3_bucket):
@@ -23,66 +33,145 @@ def latest_release(s3_bucket):
   return latest_release_number
 
 
+def copy_app(project, app, s3_bucket, release_name):
+  release_download_base_dir = app_dir(project, app) + '/releases'
+  release_download_dir = release_download_base_dir + '/' + release_name
+  changed = False
+  if not os.path.isdir(release_download_dir):
+    changed = True
+    os.makedirs(release_download_dir)
+
+  for key in s3_bucket.list(prefix = '%s/%s' % (release_name, app)):
+    release_file = key.name
+    file_key = Key(s3_bucket)
+    file_key.key = release_file
+    dest_file = release_download_base_dir + '/' + release_file
+    if not os.path.isfile(dest_file):
+      changed = True
+      file_key.get_contents_to_filename(dest_file)
+
+    if release_file.endswith('.zip'):
+      app_version = re.match(r'.*/%s-(.+).zip' % app, release_file).group(1)
+
+  if changed:
+    run_ansible_playbook('install-app.yaml', "project=%s app=%s src='%s' version='%s'" % (project, app, release_download_dir, app_version))
+
+  return changed
+
+
+def check_for_ruby(project, app):
+  ruby_version = find_and_read_version_file(app_current_dir(project, app), '.rbenv-version')
+  if ruby_version:
+    rbenv_home = '/usr/local/rbenv'
+    run_ansible_playbook('install-ruby.yaml', "version='%s' rbenv_home=%s" % (ruby_version, rbenv_home))
+    os.environ['RBENV_ROOT'] = rbenv_home
+    os.environ['PATH'] = rbenv_home + '/shims' + os.pathsep + rbenv_home + '/bin' + os.pathsep + os.environ['PATH']
+
+
+def check_for_java(project, app):
+  java_version = find_and_read_version_file(app_current_dir(project, app), '.java-version')
+  if java_version:
+    run_ansible_playbook('install-java.yaml', "version='%s'" % java_version)
+
+
+def find_and_read_version_file(base_dir, filename):
+  version = None
+  for root, dirs, files in os.walk(base_dir, followlinks = True):
+    if filename in files:
+      found = True
+      with open(root + '/' + filename) as f:
+        version = f.read().strip()
+      break
+
+  return version
+
+
+def check_for_gemfile(project, app):
+  for root, dirs, files in os.walk(app_current_dir(project, app), followlinks = True):
+    if 'Gemfile' in files:
+      run_ansible_playbook('bundle-install.yaml', "app='%s' gemfile_dir='%s'" % (app, root))
+      break
+
+
+def check_for_procfile(project, app):
+  for root, dirs, files in os.walk(app_current_dir(project, app), followlinks = True):
+    if 'Procfile' in files:
+      yaml_to_env(app_current_dir(project, app) + '/deploy/env.yaml', root + '/%s.env' % app)
+      run_ansible_playbook('install-upstart.yaml', "project='%s' app='%s' procfile_dir='%s'" % (project, app, root))
+      break
+
+
+def yaml_to_env(yaml_file, env_file):
+  f = open(yaml_file)
+  env = yaml.load(f)
+  f.close()
+  f = open(env_file, 'w')
+  for key in env.iterkeys():
+    f.write('%s=%s\n' % (key, env[key]))
+  f.close()
+
+
+def check_for_custom_deploy(project, app):
+  custom_deploy_playbook = app_current_dir(project, app) + '/deploy/deploy.yml'
+  if os.path.isfile(custom_deploy_playbook):
+    run_ansible_playbook(custom_deploy_playbook, "project='%s' app='%s' app_home='%s'" % (project, app, app_current_dir(project, app)))
+
+
+def start_app(app):
+  run_ansible_playbook('start-app.yaml', "app=" + app)
+
+def stop_app(app):
+  run_ansible_playbook('stop-app.yaml', "app=" + app)
+
+
+def run_ansible_playbook(playbook_name, extra_vars):
+  sys.stderr.write("Running ansible playbook " + playbook_name + " with params " + extra_vars)
+  ansible_command_line = 'ansible-playbook -v -c local -e "%s" %s' % (extra_vars, playbook_name)
+  p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
+  p.wait()
+  command_output = p.stdout.read() + ', ' + p.stderr.read()
+  return_code = p.returncode
+  sys.stderr.write("Ansible playbook " + playbook_name + " returned " + str(return_code) + ': ' + command_output)
+  if return_code != 0:
+    raise RuntimeError("Ansible playbook " + playbook_name + " returned " + str(return_code) + ': ' + command_output)
+
+
 def main():
   module = AnsibleModule(
     argument_spec = dict(
       project = dict(required = True),
       app = dict(required = True),
-      bucket = dict(required = True),
-      dest = dict(required = True)
+      bucket = dict(required = True)
     )
   )
 
   project = module.params['project']
   app = module.params['app']
   bucket = module.params['bucket']
-  dest = module.params['dest']
 
   changed = False
 
-  conn = boto.connect_s3()
-  s3_bucket = conn.get_bucket(bucket)
+  try:
 
-  release_num = latest_release(s3_bucket)
-  if release_num > 0:
-    release_dir_name = 'release-%s' % release_num
-    zip_file_name = app + '.zip'
-    env_file_name = app + '-env.yaml'
-    dest_folder_path = dest + '/%s/%s/%s' % (project, app, release_dir_name)
-    dest_zip_file_path = dest_folder_path + '/' + zip_file_name
-    ansible_env_file_path = dest_folder_path + '/deploy/env.yaml'
+    conn = boto.connect_s3()
+    s3_bucket = conn.get_bucket(bucket)
 
-    # Create the app dir
-    if not os.path.exists(dest_folder_path):
-      os.makedirs(dest_folder_path)
+    release_num = latest_release(s3_bucket)
+    if release_num > 0:
+      changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
 
-    # Retrieve the app zip from S3
-    if not os.path.exists(dest_zip_file_path):
-      release_key = Key(s3_bucket)
-      release_key.key = '%s/%s' % (release_dir_name, zip_file_name)
-      release_key.get_contents_to_filename(dest_zip_file_path)
+    if changed:
+      stop_app(app)
+      check_for_ruby(project, app)
+      check_for_java(project, app)
+      check_for_gemfile(project, app)
+      check_for_procfile(project, app)
+      check_for_custom_deploy(project, app)
+      start_app(app)
 
-    # Unzip the app
-    if not os.path.exists(dest_folder_path + '/deploy'):
-      changed = True
-      dest_zip = zipfile.ZipFile(dest_zip_file_path, 'r')
-      dest_zip.extractall(dest_folder_path)
-      dest_zip.close()
-
-      # Create the vars_file for ansible
-      if not os.path.exists(ansible_env_file_path):
-        env_key = Key(s3_bucket)
-        env_key.key = '%s/%s' % (release_dir_name, env_file_name)
-        env_key.get_contents_to_filename(ansible_env_file_path)
-
-      # Run the ansible deploy playbook for the app
-      ansible_command_line = 'ansible-playbook -c local -e "app_home=\'%s\'" %s/deploy/deploy.yml' % (dest_folder_path, dest_folder_path)
-      p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
-      p.wait()
-      command_output = p.stdout.read()
-      return_code = p.returncode
-      if return_code != 0:
-        module.fail_json(msg = "Ansible deploy playbook returned " + return_code + '\n' + command_output)
+  except Exception, e:
+    #module.fail_json(msg = str(e))
+    raise e
 
   module.exit_json(changed = changed)
 
