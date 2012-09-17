@@ -74,6 +74,18 @@ def check_for_java(project, app):
     run_ansible_playbook('install-java.yaml', "version='%s'" % java_version)
 
 
+def find_and_read_version_file(base_dir, filename):
+  version = None
+  for root, dirs, files in os.walk(base_dir, followlinks = True):
+    if filename in files:
+      found = True
+      with open(root + '/' + filename) as f:
+        version = f.read().strip()
+      break
+
+  return version
+
+
 def check_for_gemfile(project, app):
   for root, dirs, files in os.walk(app_current_dir(project, app), followlinks = True):
     if 'Gemfile' in files:
@@ -99,16 +111,10 @@ def yaml_to_env(yaml_file, env_file):
   f.close()
 
 
-def find_and_read_version_file(base_dir, filename):
-  version = None
-  for root, dirs, files in os.walk(base_dir, followlinks = True):
-    if filename in files:
-      found = True
-      with open(root + '/' + filename) as f:
-        version = f.read().strip()
-      break
-
-  return version
+def check_for_custom_deploy(project, app):
+  custom_deploy_playbook = app_current_dir(project, app) + '/deploy/deploy2.yaml'
+  if os.path.isfile(custom_deploy_playbook):
+    run_ansible_playbook(custom_deploy_playbook, "project='%s' app='%s' app_home='%s'" % (project, app, app_current_dir(project, app)))
 
 
 def start_app(app):
@@ -119,11 +125,13 @@ def stop_app(app):
 
 
 def run_ansible_playbook(playbook_name, extra_vars):
+  sys.stderr.write("Running ansible playbook " + playbook_name + " with params " + extra_vars)
   ansible_command_line = 'ansible-playbook -v -c local -e "%s" %s' % (extra_vars, playbook_name)
   p = Popen(ansible_command_line, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, close_fds = True)
   p.wait()
   command_output = p.stdout.read() + ', ' + p.stderr.read()
   return_code = p.returncode
+  sys.stderr.write("Ansible playbook " + playbook_name + " returned " + str(return_code) + ': ' + command_output)
   if return_code != 0:
     raise RuntimeError("Ansible playbook " + playbook_name + " returned " + str(return_code) + ': ' + command_output)
 
@@ -158,6 +166,7 @@ def main():
       check_for_java(project, app)
       check_for_gemfile(project, app)
       check_for_procfile(project, app)
+      check_for_custom_deploy(project, app)
       start_app(app)
 
   except Exception, e:

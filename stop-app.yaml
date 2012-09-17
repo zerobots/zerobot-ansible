@@ -9,5 +9,5 @@
   tasks:
 
   - name: Stop app
-    action: "command stop ${app}"
+    action: "shell /sbin/stop ${app}"
     only_if: 'os.path.isfile("/etc/init/$app.conf")'
