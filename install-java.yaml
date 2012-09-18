@@ -21,7 +21,7 @@
 
   # Strange shenanigans to get bypass the "agree to license" and signin crap that Oracle puts in your way when you want to download the JVM
   - name: Download JRE
-    action: "shell wget --no-cookies --output-document $jre_rpm --header 'Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com;' $jre_download_url creates=$jre_rpm"
+    action: "shell wget --quiet --no-cookies --output-document $jre_rpm --header 'Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com;' $jre_download_url creates=$jre_rpm"
 
   - name: Install JRE
     action: shell yum -y --nogpgcheck localinstall $jre_rpm creates=$jre_install_dir
