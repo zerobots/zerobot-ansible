@@ -24,6 +24,7 @@
       - readline
       - readline-devel
       - sqlite-devel
+      - postgresql-devel
       - make
       - git
 
