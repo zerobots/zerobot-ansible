@@ -172,7 +172,7 @@ def main():
       changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
 
     if changed:
-      sns.publish(topic, 'Deploying release %s on %s' % (str(release_num), gethostname()), sns_subject)
+      sns.publish(topic, 'Deploying %s release %s on %s' % (app, str(release_num), gethostname()), sns_subject)
 
       stop_app(app)
       check_for_ruby(project, app)
@@ -182,12 +182,12 @@ def main():
       check_for_custom_deploy(project, app)
       start_app(app)
 
-      sns.publish(topic, 'Deploy of release %s on %s complete' % (str(release_num), gethostname()), sns_subject)
+      sns.publish(topic, 'Deploy of %s release %s on %s complete' % (app, str(release_num), gethostname()), sns_subject)
 
   except Exception, e:
     #module.fail_json(msg = str(e))
     if sns:
-      sns.publish(topic, 'Deploy of release %s on %s failed: %s' % (str(release_num), gethostname(), str(e)), sns_subject)
+      sns.publish(topic, 'Deploy of %s release %s on %s failed: %s' % (app, str(release_num), gethostname(), str(e)), sns_subject)
 
     raise e
 
