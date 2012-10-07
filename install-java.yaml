@@ -29,5 +29,5 @@
   - name: Update alternatives
     action: |
       shell
-      alternatives --install /usr/bin/java java $jre_install_dir/bin/java 20000 &&
-      alternatives --install /usr/bin/jar jar $jre_install_dir/bin/jar 20000
+      /usr/sbin/alternatives --install /usr/bin/java java $jre_install_dir/bin/java 20000 &&
+      /usr/sbin/alternatives --install /usr/bin/jar jar $jre_install_dir/bin/jar 20000
