@@ -143,9 +143,10 @@ def main():
     argument_spec = dict(
       project = dict(required = True),
       app = dict(required = True),
+      environment = dict(required = True)
       bucket = dict(required = True)
-      topic = dict(required = False)
-      region = dict(required = False)
+      topic = dict(required = True)
+      region = dict(required = True)
     )
   )
 
@@ -159,16 +160,15 @@ def main():
 
     conn = boto.connect_s3()
     s3_bucket = conn.get_bucket(bucket)
-    if topic:
-      sns = boto.sns.connect_to_region(region)
+    sns = boto.sns.connect_to_region(region)
+    sns_subject = 'zerobot-release-%s-%s-%s' % (project, environment, app, )
 
     release_num = latest_release(s3_bucket)
     if release_num > 0:
       changed = copy_app(project, app, s3_bucket, 'release-' + str(release_num))
 
     if changed:
-      if topic:
-        sns.publish(topic, 'Deploying release %s on %s' % (str(release_num), gethostname()), 'release')
+      sns.publish(topic, 'Deploying release %s on %s' % (str(release_num), gethostname()), sns_subject)
 
       stop_app(app)
       check_for_ruby(project, app)
@@ -178,13 +178,11 @@ def main():
       check_for_custom_deploy(project, app)
       start_app(app)
 
-      if topic:
-        sns.publish(topic, 'Deploy of release %s on %s complete' % (str(release_num), gethostname()), 'release')
+      sns.publish(topic, 'Deploy of release %s on %s complete' % (str(release_num), gethostname()), sns_subject)
 
   except Exception, e:
     #module.fail_json(msg = str(e))
-    if topic:
-      sns.publish(topic, 'Deploy of release %s on %s failed: %s' % (str(release_num), gethostname(), str(e)), 'release')
+    sns.publish(topic, 'Deploy of release %s on %s failed: %s' % (str(release_num), gethostname(), str(e)), sns_subject)
 
     raise e
 
