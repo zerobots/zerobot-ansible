@@ -143,25 +143,29 @@ def main():
     argument_spec = dict(
       project = dict(required = True),
       app = dict(required = True),
-      environment = dict(required = True)
-      bucket = dict(required = True)
-      topic = dict(required = True)
+      environment = dict(required = True),
+      bucket = dict(required = True),
+      topic = dict(required = True),
       region = dict(required = True)
     )
   )
 
   project = module.params['project']
   app = module.params['app']
+  environment = module.params['environment']
   bucket = module.params['bucket']
+  topic = module.params['topic']
+  region = module.params['region']
 
   changed = False
+  sns = None
 
   try:
 
     conn = boto.connect_s3()
     s3_bucket = conn.get_bucket(bucket)
     sns = boto.sns.connect_to_region(region)
-    sns_subject = 'zerobot-release-%s-%s-%s' % (project, environment, app, )
+    sns_subject = 'zerobot-release-%s-%s-%s' % (project, environment, app)
 
     release_num = latest_release(s3_bucket)
     if release_num > 0:
@@ -182,7 +186,8 @@ def main():
 
   except Exception, e:
     #module.fail_json(msg = str(e))
-    sns.publish(topic, 'Deploy of release %s on %s failed: %s' % (str(release_num), gethostname(), str(e)), sns_subject)
+    if sns:
+      sns.publish(topic, 'Deploy of release %s on %s failed: %s' % (str(release_num), gethostname(), str(e)), sns_subject)
 
     raise e
 
